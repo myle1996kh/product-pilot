@@ -1,7 +1,9 @@
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { StackComparison, ArchitectureFlow, MigrationPath } from "@/components/ArchitectureWidgets";
+import MarkdownContent from "@/components/MarkdownContent";
+import ExportPanel from "@/components/ExportPanel";
 import {
   ChevronRight,
   FileText,
@@ -15,6 +17,7 @@ import {
   CheckCircle2,
   MessageSquare,
   Loader2,
+  Package,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -148,17 +151,17 @@ function Section({
         </div>
       )}
 
-      <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/80">
-        {content || <span className="italic text-muted-foreground">No content yet</span>}
-      </div>
+      <MarkdownContent content={content} />
     </div>
   );
 }
 
 export default function ProjectReview() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const isExportTab = searchParams.get("tab") === "export";
   const [activeTab, setActiveTab] = useState<string>("");
 
   // Fetch artifacts for this project
@@ -260,9 +263,13 @@ export default function ProjectReview() {
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="font-display text-2xl font-semibold">Plan Review Hub</h1>
+            <h1 className="font-display text-2xl font-semibold">
+              {isExportTab ? "Export Package" : "Plan Review Hub"}
+            </h1>
             <p className="text-sm text-muted-foreground">
-              Review, comment, and regenerate each section.
+              {isExportTab
+                ? "Download your planning documents as Markdown files."
+                : "Review, comment, and regenerate each section."}
             </p>
           </div>
           <Link to={`/project/${id}`}>
@@ -272,6 +279,13 @@ export default function ProjectReview() {
           </Link>
         </div>
 
+        {isExportTab ? (
+          <ExportPanel
+            projectId={id!}
+            projectName={project?.name || "Project"}
+            artifacts={artifacts || []}
+          />
+        ) : (
         <Tabs value={currentTab} onValueChange={setActiveTab}>
           <TabsList className="mb-6 h-auto flex-wrap gap-1 bg-transparent p-0">
             {artifacts?.map((artifact) => {
@@ -331,6 +345,7 @@ export default function ProjectReview() {
             </TabsContent>
           ))}
         </Tabs>
+        )}
       </motion.div>
     </div>
   );
