@@ -158,8 +158,10 @@ function Section({
 
 export default function ProjectReview() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const isExportTab = searchParams.get("tab") === "export";
   const [activeTab, setActiveTab] = useState<string>("");
 
   // Fetch artifacts for this project
