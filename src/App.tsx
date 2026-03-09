@@ -11,6 +11,7 @@ import ProjectDetail from "./pages/ProjectDetail";
 import ProjectDiscussion from "./pages/ProjectDiscussion";
 import ProjectReadiness from "./pages/ProjectReadiness";
 import ProjectReview from "./pages/ProjectReview";
+import ProjectDeck from "./pages/ProjectDeck";
 import AuthPage from "./pages/AuthPage";
 import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
@@ -40,6 +41,7 @@ function ProtectedRoutes() {
         <Route path="/project/:id/discussion" element={<ProjectDiscussion />} />
         <Route path="/project/:id/readiness" element={<ProjectReadiness />} />
         <Route path="/project/:id/review" element={<ProjectReview />} />
+        <Route path="/project/:id/deck" element={<ProjectDeck />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

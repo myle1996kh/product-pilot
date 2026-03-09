@@ -43,11 +43,18 @@ const quickLinks = [
     color: "bg-success/10 text-success",
   },
   {
+    to: "deck",
+    icon: Sparkles,
+    label: "Intro Deck",
+    desc: "Pitch deck with first-principles thinking",
+    color: "bg-info/10 text-info",
+  },
+  {
     to: "review?tab=export",
     icon: Download,
     label: "Export",
     desc: "Download your planning package",
-    color: "bg-info/10 text-info",
+    color: "bg-muted text-muted-foreground",
   },
 ];
 
@@ -57,6 +64,7 @@ const ARTIFACT_OPTIONS = [
   { key: "architecture", label: "Architecture", icon: FileText },
   { key: "business_model", label: "Business Model", icon: FileText },
   { key: "execution_plan", label: "Execution Plan", icon: FileText },
+  { key: "intro_deck", label: "Intro Deck", icon: Sparkles },
 ] as const;
 
 export default function ProjectDetail() {
