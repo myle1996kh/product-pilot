@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
+import { StackComparison, ArchitectureFlow, MigrationPath } from "@/components/ArchitectureWidgets";
 import {
   ChevronRight,
   FileText,
@@ -192,25 +193,14 @@ export default function ProjectReview() {
           </TabsContent>
 
           <TabsContent value="architecture" className="space-y-4">
-            <Section title="Recommended Stack" status="approved">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-lg bg-secondary/50 p-3">
-                  <p className="text-xs font-medium text-muted-foreground">Frontend</p>
-                  <p className="font-medium">React + Vite + Tailwind</p>
-                </div>
-                <div className="rounded-lg bg-secondary/50 p-3">
-                  <p className="text-xs font-medium text-muted-foreground">Backend</p>
-                  <p className="font-medium">Supabase (Lovable Cloud)</p>
-                </div>
-                <div className="rounded-lg bg-secondary/50 p-3">
-                  <p className="text-xs font-medium text-muted-foreground">Payments</p>
-                  <p className="font-medium">Stripe</p>
-                </div>
-                <div className="rounded-lg bg-secondary/50 p-3">
-                  <p className="text-xs font-medium text-muted-foreground">Deploy</p>
-                  <p className="font-medium">Lovable Publish</p>
-                </div>
-              </div>
+            <Section title="Stack Comparison" status="approved">
+              <StackComparison />
+            </Section>
+            <Section title="Architecture Overview" status="approved">
+              <ArchitectureFlow />
+            </Section>
+            <Section title="Migration Path (MVP → Scale)" status="needs_review">
+              <MigrationPath />
             </Section>
           </TabsContent>
 
