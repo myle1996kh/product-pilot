@@ -28,6 +28,22 @@ const ARTIFACT_PROMPTS: Record<string, { systemPrompt: string; sections: string[
     systemPrompt: `You are an engineering project manager. Generate a detailed execution plan / roadmap. Output valid JSON with the structure: { "sections": [{ "title": string, "content": string, "order": number }] }. Include sections for: MVP Scope, Sprint Breakdown, Resource Requirements, Dependencies & Risks, Testing Strategy, Launch Checklist, and Post-Launch Plan.`,
     sections: ["MVP Scope", "Sprint Breakdown", "Resource Requirements", "Dependencies & Risks", "Testing Strategy", "Launch Checklist", "Post-Launch Plan"],
   },
+  intro_deck: {
+    systemPrompt: `You are a world-class pitch deck strategist who thinks like Elon Musk — first principles, 10x thinking, brutal clarity. Generate a pitch deck outline for this project. Each section becomes a slide. Use Markdown formatting with bullet points for lists. Output valid JSON with the structure: { "sections": [{ "title": string, "content": string, "order": number }] }. Include these slides/sections:
+1. "Elevator Pitch" - One powerful sentence that captures everything
+2. "The Problem" - What fundamental problem exists? Why is it painful? Use first-principles thinking
+3. "Why Now" - Technology convergence, market timing, behavior shifts (use bullet points)
+4. "Target Users" - Who specifically, with demographics and psychographics  
+5. "The Solution" - How we solve it 10x better than alternatives
+6. "Market Size" - TAM/SAM/SOM with real numbers if possible
+7. "Competitive Landscape" - What exists, why it fails (bullet points)
+8. "Revenue Model" - How we make money (bullet points)
+9. "Execution Roadmap" - Phased plan with timelines (bullet points)
+10. "Risks & Mitigation" - Honest risks and how we handle them
+
+Make content punchy, data-driven, and inspiring. No fluff.`,
+    sections: ["Elevator Pitch", "The Problem", "Why Now", "Target Users", "The Solution", "Market Size", "Competitive Landscape", "Revenue Model", "Execution Roadmap", "Risks & Mitigation"],
+  },
 };
 
 serve(async (req) => {
