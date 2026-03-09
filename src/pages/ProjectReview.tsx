@@ -1,7 +1,9 @@
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { StackComparison, ArchitectureFlow, MigrationPath } from "@/components/ArchitectureWidgets";
+import MarkdownContent from "@/components/MarkdownContent";
+import ExportPanel from "@/components/ExportPanel";
 import {
   ChevronRight,
   FileText,
@@ -15,6 +17,7 @@ import {
   CheckCircle2,
   MessageSquare,
   Loader2,
+  Package,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
