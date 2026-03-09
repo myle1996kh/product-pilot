@@ -151,9 +151,7 @@ function Section({
         </div>
       )}
 
-      <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/80">
-        {content || <span className="italic text-muted-foreground">No content yet</span>}
-      </div>
+      <MarkdownContent content={content} />
     </div>
   );
 }
