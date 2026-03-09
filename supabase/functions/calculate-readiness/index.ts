@@ -169,6 +169,7 @@ ${conversationText || "No conversation yet."}`;
           { role: "user", content: projectContext },
         ],
         temperature: 0.3,
+        stream: false,
       }),
     });
 
