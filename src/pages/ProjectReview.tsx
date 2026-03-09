@@ -263,9 +263,13 @@ export default function ProjectReview() {
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="font-display text-2xl font-semibold">Plan Review Hub</h1>
+            <h1 className="font-display text-2xl font-semibold">
+              {isExportTab ? "Export Package" : "Plan Review Hub"}
+            </h1>
             <p className="text-sm text-muted-foreground">
-              Review, comment, and regenerate each section.
+              {isExportTab
+                ? "Download your planning documents as Markdown files."
+                : "Review, comment, and regenerate each section."}
             </p>
           </div>
           <Link to={`/project/${id}`}>
