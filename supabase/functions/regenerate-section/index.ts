@@ -152,6 +152,7 @@ Write an improved version of this section. Be detailed, specific, and actionable
           { role: "user", content: `Please regenerate the "${section.title}" section.${feedback ? ` Focus on: ${feedback}` : ""}` },
         ],
         temperature: 0.7,
+        stream: false,
       }),
     });
 
