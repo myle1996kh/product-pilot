@@ -61,8 +61,16 @@ serve(async (req) => {
     let headers: Record<string, string>;
 
     if (providerSettings && providerSettings.provider_name !== "lovable") {
-      // User's custom provider — use endpoint as-is
-      apiEndpoint = providerSettings.api_endpoint || "";
+      // User's custom provider
+      let baseUrl = (providerSettings.api_endpoint || "").replace(/\/+$/, "");
+      // Append /chat/completions for OpenAI-compatible providers (unless already present)
+      if (providerSettings.provider_name === "anthropic") {
+        apiEndpoint = baseUrl;
+      } else if (!baseUrl.endsWith("/chat/completions")) {
+        apiEndpoint = `${baseUrl}/chat/completions`;
+      } else {
+        apiEndpoint = baseUrl;
+      }
       apiKey = providerSettings.api_key_encrypted || "";
       model = providerSettings.default_model || "gpt-5-mini";
 
@@ -139,6 +147,7 @@ Ask ONE focused question at a time.`;
       agentRunId = run?.id || null;
     }
 
+    console.log("Calling AI endpoint:", apiEndpoint, "model:", model);
     const response = await fetch(apiEndpoint, {
       method: "POST",
       headers,
@@ -151,7 +160,7 @@ Ask ONE focused question at a time.`;
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error("AI API error:", response.status, errText);
+      console.error("AI API error:", response.status, "url:", apiEndpoint, "body:", errText);
 
       if (agentRunId) {
         await supabase
