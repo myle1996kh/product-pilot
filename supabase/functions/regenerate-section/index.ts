@@ -96,7 +96,14 @@ serve(async (req) => {
     let headers: Record<string, string>;
 
     if (providerSettings && providerSettings.provider_name !== "lovable") {
-      apiEndpoint = providerSettings.api_endpoint || "";
+      let baseUrl = (providerSettings.api_endpoint || "").replace(/\/+$/, "");
+      if (providerSettings.provider_name === "anthropic") {
+        apiEndpoint = baseUrl;
+      } else if (!baseUrl.endsWith("/chat/completions")) {
+        apiEndpoint = `${baseUrl}/chat/completions`;
+      } else {
+        apiEndpoint = baseUrl;
+      }
       apiKey = providerSettings.api_key_encrypted || "";
       model = providerSettings.default_model || "gpt-5-mini";
       if (!apiEndpoint || !apiKey) {
