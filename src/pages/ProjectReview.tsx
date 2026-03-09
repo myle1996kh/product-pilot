@@ -345,6 +345,7 @@ export default function ProjectReview() {
             </TabsContent>
           ))}
         </Tabs>
+        )}
       </motion.div>
     </div>
   );
