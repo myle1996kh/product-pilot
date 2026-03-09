@@ -118,10 +118,7 @@ ${conversationContext}
     let headers: Record<string, string>;
 
     if (providerSettings && providerSettings.provider_name !== "lovable") {
-      const baseEndpoint = providerSettings.api_endpoint || "";
-      apiEndpoint = baseEndpoint.endsWith("/chat/completions")
-        ? baseEndpoint
-        : `${baseEndpoint.replace(/\/+$/, "")}/chat/completions`;
+      apiEndpoint = providerSettings.api_endpoint || "";
       apiKey = providerSettings.api_key_encrypted || "";
       model = providerSettings.default_model || "gpt-5-mini";
       if (!apiEndpoint || !apiKey) {

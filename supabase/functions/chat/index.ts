@@ -61,11 +61,8 @@ serve(async (req) => {
     let headers: Record<string, string>;
 
     if (providerSettings && providerSettings.provider_name !== "lovable") {
-      // User's custom provider — append /chat/completions if not already present
-      const baseEndpoint = providerSettings.api_endpoint || "";
-      apiEndpoint = baseEndpoint.endsWith("/chat/completions")
-        ? baseEndpoint
-        : `${baseEndpoint.replace(/\/+$/, "")}/chat/completions`;
+      // User's custom provider — use endpoint as-is
+      apiEndpoint = providerSettings.api_endpoint || "";
       apiKey = providerSettings.api_key_encrypted || "";
       model = providerSettings.default_model || "gpt-5-mini";
 
