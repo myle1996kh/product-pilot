@@ -146,7 +146,12 @@ export default function ProjectDetail() {
             <h1 className="font-display text-2xl font-semibold">{project.name}</h1>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Clock className="h-3.5 w-3.5" />
-              Updated {formatDistanceToNow(new Date(project.updated_at), { addSuffix: true })}
+              Updated {(() => {
+                try {
+                  const d = new Date(project.updated_at);
+                  return isNaN(d.getTime()) ? "recently" : formatDistanceToNow(d, { addSuffix: true });
+                } catch { return "recently"; }
+              })()}
             </div>
           </div>
         </div>
