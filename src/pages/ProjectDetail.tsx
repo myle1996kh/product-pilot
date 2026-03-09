@@ -8,7 +8,12 @@ import {
   ArrowRight,
   Clock,
   Sparkles,
+  Loader2,
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useQuery } from "@tanstack/react-query";
+import { formatDistanceToNow } from "date-fns";
 
 const quickLinks = [
   {
@@ -43,25 +48,54 @@ const quickLinks = [
 
 export default function ProjectDetail() {
   const { id } = useParams();
+  const { user } = useAuth();
+
+  const { data: project, isLoading } = useQuery({
+    queryKey: ["project", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("projects")
+        .select("*")
+        .eq("id", id!)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id && !!user,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!project) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <p className="text-muted-foreground">Project not found</p>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-3xl px-8 py-10">
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-        {/* Header */}
         <div className="mb-8 flex items-center gap-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
             <Sparkles className="h-6 w-6 text-primary" />
           </div>
           <div>
-            <h1 className="font-display text-2xl font-semibold">E-commerce MVP</h1>
+            <h1 className="font-display text-2xl font-semibold">{project.name}</h1>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Clock className="h-3.5 w-3.5" />
-              Last updated 2 hours ago
+              Updated {formatDistanceToNow(new Date(project.updated_at), { addSuffix: true })}
             </div>
           </div>
         </div>
 
-        {/* Quick links grid */}
         <div className="grid grid-cols-2 gap-4">
           {quickLinks.map((link, i) => (
             <motion.div
