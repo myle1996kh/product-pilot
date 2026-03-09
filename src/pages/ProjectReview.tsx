@@ -279,6 +279,13 @@ export default function ProjectReview() {
           </Link>
         </div>
 
+        {isExportTab ? (
+          <ExportPanel
+            projectId={id!}
+            projectName={project?.name || "Project"}
+            artifacts={artifacts || []}
+          />
+        ) : (
         <Tabs value={currentTab} onValueChange={setActiveTab}>
           <TabsList className="mb-6 h-auto flex-wrap gap-1 bg-transparent p-0">
             {artifacts?.map((artifact) => {
