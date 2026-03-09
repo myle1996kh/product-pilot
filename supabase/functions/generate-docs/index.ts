@@ -180,6 +180,7 @@ ${conversationContext}
               { role: "user", content: `Generate the document based on this project info:\n${projectContext}` },
             ],
             temperature: 0.7,
+            stream: false,
           }),
         });
 
