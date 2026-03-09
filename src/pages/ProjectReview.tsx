@@ -295,6 +295,22 @@ export default function ProjectReview() {
 
           {artifacts?.map((artifact) => (
             <TabsContent key={artifact.artifact_type} value={artifact.artifact_type} className="space-y-4">
+              {artifact.artifact_type === "architecture" && (
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="mb-2 font-display text-sm font-semibold">System Architecture</h3>
+                    <ArchitectureFlow />
+                  </div>
+                  <div>
+                    <h3 className="mb-2 font-display text-sm font-semibold">Stack Comparison</h3>
+                    <StackComparison />
+                  </div>
+                  <div>
+                    <h3 className="mb-2 font-display text-sm font-semibold">Migration Roadmap</h3>
+                    <MigrationPath />
+                  </div>
+                </div>
+              )}
               {loadingSections && activeArtifact?.id === artifact.id ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
