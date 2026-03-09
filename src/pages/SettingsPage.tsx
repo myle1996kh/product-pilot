@@ -1,10 +1,23 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Settings, Key, Cpu, Plus, Trash2, Check, ExternalLink } from "lucide-react";
+import {
+  Settings,
+  Key,
+  Cpu,
+  Plus,
+  Trash2,
+  Check,
+  Zap,
+  RefreshCw,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -16,6 +29,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
+type ConnectionStatus = "idle" | "testing" | "success" | "error";
+
 type ProviderConfig = {
   id?: string;
   provider_name: string;
@@ -23,6 +38,12 @@ type ProviderConfig = {
   api_key_encrypted: string;
   default_model: string;
   is_active: boolean;
+  // UI-only state
+  connectionStatus: ConnectionStatus;
+  connectionMessage: string;
+  connectionLatency?: number;
+  fetchedModels: string[];
+  isFetchingModels: boolean;
 };
 
 const providerPresets: Record<string, { endpoint: string; models: string[] }> = {
@@ -38,15 +59,15 @@ const providerPresets: Record<string, { endpoint: string; models: string[] }> = 
   },
   openai: {
     endpoint: "https://api.openai.com/v1/chat/completions",
-    models: ["gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-4o"],
+    models: [],
   },
   anthropic: {
     endpoint: "https://api.anthropic.com/v1/messages",
-    models: ["claude-sonnet-4-20250514", "claude-3-5-haiku-20241022"],
+    models: [],
   },
   google: {
     endpoint: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-    models: ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-3-flash-preview"],
+    models: [],
   },
   custom: {
     endpoint: "",
@@ -54,8 +75,10 @@ const providerPresets: Record<string, { endpoint: string; models: string[] }> = 
   },
 };
 
+const TEST_PROVIDER_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/test-provider`;
+
 export default function SettingsPage() {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const [providers, setProviders] = useState<ProviderConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -72,6 +95,7 @@ export default function SettingsPage() {
 
     if (error) {
       toast.error("Failed to load settings");
+      setLoading(false);
       return;
     }
 
@@ -84,10 +108,13 @@ export default function SettingsPage() {
           api_key_encrypted: d.api_key_encrypted || "",
           default_model: d.default_model || "",
           is_active: d.is_active ?? true,
+          connectionStatus: "idle",
+          connectionMessage: "",
+          fetchedModels: [],
+          isFetchingModels: false,
         }))
       );
     } else {
-      // Default provider
       setProviders([
         {
           provider_name: "lovable",
@@ -95,6 +122,10 @@ export default function SettingsPage() {
           api_key_encrypted: "",
           default_model: "google/gemini-3-flash-preview",
           is_active: true,
+          connectionStatus: "idle",
+          connectionMessage: "",
+          fetchedModels: [],
+          isFetchingModels: false,
         },
       ]);
     }
@@ -108,8 +139,12 @@ export default function SettingsPage() {
         provider_name: "openai",
         api_endpoint: providerPresets.openai.endpoint,
         api_key_encrypted: "",
-        default_model: providerPresets.openai.models[0],
+        default_model: "",
         is_active: false,
+        connectionStatus: "idle",
+        connectionMessage: "",
+        fetchedModels: [],
+        isFetchingModels: false,
       },
     ]);
   };
@@ -119,10 +154,12 @@ export default function SettingsPage() {
       prev.map((p, i) => {
         if (i !== index) return p;
         const updated = { ...p, ...updates };
-        // Auto-fill endpoint when provider changes
         if (updates.provider_name && providerPresets[updates.provider_name]) {
           updated.api_endpoint = providerPresets[updates.provider_name].endpoint;
-          updated.default_model = providerPresets[updates.provider_name].models[0] || "";
+          updated.default_model = "";
+          updated.fetchedModels = [];
+          updated.connectionStatus = "idle";
+          updated.connectionMessage = "";
         }
         return updated;
       })
@@ -133,15 +170,96 @@ export default function SettingsPage() {
     setProviders((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const testConnection = async (index: number) => {
+    const provider = providers[index];
+    updateProvider(index, { connectionStatus: "testing", connectionMessage: "Testing..." });
+
+    try {
+      const resp = await fetch(TEST_PROVIDER_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({
+          action: "test",
+          provider_name: provider.provider_name,
+          api_endpoint: provider.api_endpoint,
+          api_key: provider.api_key_encrypted,
+        }),
+      });
+
+      const data = await resp.json();
+
+      if (data.success) {
+        updateProvider(index, {
+          connectionStatus: "success",
+          connectionMessage: data.message,
+          connectionLatency: data.latency_ms,
+        });
+        toast.success("Connection successful!");
+      } else {
+        updateProvider(index, {
+          connectionStatus: "error",
+          connectionMessage: data.message || data.error || "Connection failed",
+        });
+        toast.error(data.message || "Connection failed");
+      }
+    } catch (err: any) {
+      updateProvider(index, {
+        connectionStatus: "error",
+        connectionMessage: err.message || "Network error",
+      });
+      toast.error("Failed to test connection");
+    }
+  };
+
+  const fetchModels = async (index: number) => {
+    const provider = providers[index];
+    updateProvider(index, { isFetchingModels: true });
+
+    try {
+      const resp = await fetch(TEST_PROVIDER_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({
+          action: "fetch_models",
+          provider_name: provider.provider_name,
+          api_endpoint: provider.api_endpoint,
+          api_key: provider.api_key_encrypted,
+        }),
+      });
+
+      const data = await resp.json();
+
+      if (data.success && data.models && data.models.length > 0) {
+        updateProvider(index, {
+          fetchedModels: data.models,
+          isFetchingModels: false,
+        });
+        toast.success(`Found ${data.models.length} models`);
+      } else {
+        updateProvider(index, {
+          isFetchingModels: false,
+        });
+        toast.info(data.message || "No models found. Enter model name manually.");
+      }
+    } catch (err: any) {
+      updateProvider(index, { isFetchingModels: false });
+      toast.error("Failed to fetch models");
+    }
+  };
+
   const saveProviders = async () => {
     if (!user) return;
     setSaving(true);
 
     try {
-      // Delete existing
       await supabase.from("ai_provider_settings").delete().eq("user_id", user.id);
 
-      // Insert all
       const inserts = providers.map((p) => ({
         user_id: user.id,
         provider_name: p.provider_name,
@@ -166,7 +284,7 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <p className="text-muted-foreground">Loading settings...</p>
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -186,7 +304,6 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* AI Provider Settings */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-lg font-semibold">AI Providers</h2>
@@ -197,6 +314,11 @@ export default function SettingsPage() {
 
           {providers.map((provider, index) => {
             const preset = providerPresets[provider.provider_name];
+            const availableModels =
+              provider.fetchedModels.length > 0
+                ? provider.fetchedModels
+                : preset?.models || [];
+
             return (
               <motion.div
                 key={index}
@@ -204,6 +326,7 @@ export default function SettingsPage() {
                 animate={{ opacity: 1, y: 0 }}
                 className="rounded-xl border bg-card p-5 shadow-soft"
               >
+                {/* Header */}
                 <div className="mb-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary">
@@ -213,6 +336,8 @@ export default function SettingsPage() {
                       <p className="text-sm font-medium capitalize">
                         {provider.provider_name === "lovable"
                           ? "Lovable AI Gateway"
+                          : provider.provider_name === "custom"
+                          ? "Custom / 9Router"
                           : provider.provider_name}
                       </p>
                       {provider.provider_name === "lovable" && (
@@ -242,6 +367,7 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
+                {/* Config fields */}
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label className="text-xs">Provider</Label>
@@ -265,37 +391,6 @@ export default function SettingsPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-xs">Model</Label>
-                    {preset && preset.models.length > 0 ? (
-                      <Select
-                        value={provider.default_model}
-                        onValueChange={(val) =>
-                          updateProvider(index, { default_model: val })
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {preset.models.map((m) => (
-                            <SelectItem key={m} value={m}>
-                              {m}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Input
-                        value={provider.default_model}
-                        onChange={(e) =>
-                          updateProvider(index, { default_model: e.target.value })
-                        }
-                        placeholder="model-name"
-                      />
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
                     <Label className="text-xs">API Endpoint</Label>
                     <Input
                       value={provider.api_endpoint}
@@ -307,21 +402,134 @@ export default function SettingsPage() {
                   </div>
 
                   {provider.provider_name !== "lovable" && (
-                    <div className="space-y-2">
-                      <Label className="text-xs flex items-center gap-1">
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label className="flex items-center gap-1 text-xs">
                         <Key className="h-3 w-3" /> API Key
                       </Label>
                       <Input
                         type="password"
                         value={provider.api_key_encrypted}
                         onChange={(e) =>
-                          updateProvider(index, {
-                            api_key_encrypted: e.target.value,
-                          })
+                          updateProvider(index, { api_key_encrypted: e.target.value })
                         }
                         placeholder="sk-..."
                       />
                     </div>
+                  )}
+                </div>
+
+                {/* Test Connection + Fetch Models */}
+                <div className="mt-4 flex items-center gap-2 border-t pt-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    disabled={provider.connectionStatus === "testing"}
+                    onClick={() => testConnection(index)}
+                  >
+                    {provider.connectionStatus === "testing" ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Zap className="h-3.5 w-3.5" />
+                    )}
+                    Test Connection
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    disabled={provider.isFetchingModels}
+                    onClick={() => fetchModels(index)}
+                  >
+                    {provider.isFetchingModels ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-3.5 w-3.5" />
+                    )}
+                    Fetch Models
+                  </Button>
+
+                  {/* Connection status indicator */}
+                  {provider.connectionStatus !== "idle" &&
+                    provider.connectionStatus !== "testing" && (
+                      <div className="flex items-center gap-1.5">
+                        {provider.connectionStatus === "success" ? (
+                          <CheckCircle2 className="h-4 w-4 text-success" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-destructive" />
+                        )}
+                        <span
+                          className={`text-xs ${
+                            provider.connectionStatus === "success"
+                              ? "text-success"
+                              : "text-destructive"
+                          }`}
+                        >
+                          {provider.connectionMessage}
+                        </span>
+                      </div>
+                    )}
+                </div>
+
+                {/* Model Selection */}
+                <div className="mt-4 space-y-2 border-t pt-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-medium">Model</Label>
+                    {provider.fetchedModels.length > 0 && (
+                      <Badge
+                        variant="outline"
+                        className="bg-success/10 text-success border-success/30 text-[10px]"
+                      >
+                        {provider.fetchedModels.length} models loaded
+                      </Badge>
+                    )}
+                  </div>
+
+                  {availableModels.length > 0 ? (
+                    <Select
+                      value={provider.default_model}
+                      onValueChange={(val) =>
+                        updateProvider(index, { default_model: val })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a model..." />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-60">
+                        {availableModels.map((m) => (
+                          <SelectItem key={m} value={m}>
+                            {m}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      value={provider.default_model}
+                      onChange={(e) =>
+                        updateProvider(index, { default_model: e.target.value })
+                      }
+                      placeholder="Enter model name or click Fetch Models"
+                    />
+                  )}
+
+                  {availableModels.length > 0 && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Or type a custom model name:
+                      <Input
+                        className="mt-1"
+                        value={
+                          availableModels.includes(provider.default_model)
+                            ? ""
+                            : provider.default_model
+                        }
+                        onChange={(e) =>
+                          updateProvider(index, { default_model: e.target.value })
+                        }
+                        placeholder="custom-model-name"
+                      />
+                    </p>
                   )}
                 </div>
               </motion.div>
