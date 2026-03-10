@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Shield, Zap, DollarSign, TrendingUp, Lock, Star, CheckCircle2, MinusCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import MermaidDiagram from "@/components/MermaidDiagram";
 
-/* ─── Stack Comparison (kept as table + Mermaid decision tree) ─── */
+/* ─── Types ─── */
 
 type StackOption = {
   name: string;
@@ -16,7 +16,42 @@ type StackOption = {
   cons: string[];
 };
 
-const stackOptions: StackOption[] = [
+type ArchitectureWidgetsProps = {
+  sections?: { title: string; content: string }[];
+};
+
+/* ─── Parse AI content into structured data ─── */
+
+function extractMermaidFromContent(content: string): string | null {
+  const mermaidMatch = content.match(/```mermaid\s*([\s\S]*?)```/);
+  return mermaidMatch ? mermaidMatch[1].trim() : null;
+}
+
+function parseStackFromContent(content: string): StackOption[] | null {
+  try {
+    // Try to find JSON-like stack data in content
+    const jsonMatch = content.match(/```json\s*([\s\S]*?)```/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[1]);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch { /* fall through */ }
+  return null;
+}
+
+function extractBulletItems(content: string, header: string): string[] {
+  const regex = new RegExp(`(?:^|\\n)(?:#+\\s*)?${header}[:\\s]*\\n([\\s\\S]*?)(?=\\n(?:#+\\s)|$)`, "i");
+  const match = content.match(regex);
+  if (!match) return [];
+  return match[1]
+    .split("\n")
+    .map(line => line.replace(/^[\s\-*•]+/, "").trim())
+    .filter(Boolean);
+}
+
+/* ─── Default static data (fallback) ─── */
+
+const defaultStackOptions: StackOption[] = [
   {
     name: "Lovable Full Stack",
     key: "lovable",
@@ -65,7 +100,7 @@ const stackOptions: StackOption[] = [
   },
 ];
 
-const DECISION_TREE_CHART = `flowchart TD
+const DEFAULT_DECISION_TREE = `flowchart TD
     A["What are you building?"] --> B{"E-commerce?"}
     B -->|Yes| C{"Need full control?"}
     B -->|No| D{"Technical team?"}
@@ -80,6 +115,94 @@ const DECISION_TREE_CHART = `flowchart TD
     style E fill:#3b82f6,stroke:#2563eb,color:#fff
     style F fill:#f59e0b,stroke:#d97706,color:#fff
 `;
+
+const DEFAULT_ARCHITECTURE_FLOW = `flowchart TB
+    subgraph Client["Client Layer"]
+        SPA["React SPA<br/>Vite + TypeScript + Tailwind"]
+        State["TanStack Query<br/>+ React Context"]
+        Router["React Router v6"]
+    end
+
+    subgraph API["API Gateway"]
+        SupaClient["Supabase Client<br/>Auth, DB, Storage, Realtime"]
+        Edge["Edge Functions<br/>Stripe, Email, AI"]
+        REST["REST / RPC<br/>Auto-generated"]
+    end
+
+    subgraph Data["Data Layer"]
+        PG["PostgreSQL<br/>Products, Orders, Users"]
+        RLS["Row-Level Security<br/>Per-user Isolation"]
+        Storage["Storage Buckets<br/>Images, Exports"]
+    end
+
+    subgraph External["External Services"]
+        Stripe["Stripe<br/>Payments & Subscriptions"]
+        Email["Resend / SendGrid<br/>Transactional Emails"]
+        AI["AI Gateway<br/>AI-powered Features"]
+    end
+
+    SPA --> SupaClient
+    SPA --> Edge
+    State --> SupaClient
+    SupaClient --> PG
+    SupaClient --> RLS
+    SupaClient --> Storage
+    Edge --> Stripe
+    Edge --> Email
+    Edge --> AI
+    REST --> PG
+
+    style Client fill:#3b82f620,stroke:#3b82f6
+    style API fill:#06b6d420,stroke:#06b6d4
+    style Data fill:#22c55e20,stroke:#22c55e
+    style External fill:#f59e0b20,stroke:#f59e0b
+`;
+
+const DEFAULT_DATA_FLOW = `sequenceDiagram
+    participant U as User
+    participant R as React App
+    participant S as Supabase
+    participant E as Edge Function
+    participant St as Stripe
+    
+    U->>R: Interact with UI
+    R->>S: Query/Mutate Data
+    S-->>R: Realtime Updates
+    R->>E: Trigger Action
+    E->>St: Process Payment
+    St-->>E: Webhook Response
+    E->>S: Update Database
+    S-->>R: Push Change
+    R-->>U: Update UI
+`;
+
+const DEFAULT_MIGRATION_CHART = `flowchart LR
+    subgraph MVP["Phase 1: MVP<br/>Month 1-2"]
+        M1["Lovable + Supabase"]
+        M2["Stripe Checkout"]
+        M3["Ship & Validate PMF"]
+    end
+
+    subgraph Growth["Phase 2: Growth<br/>Month 3-6"]
+        G1["Add CDN & Caching"]
+        G2["Background Jobs"]
+        G3["Analytics Pipeline"]
+    end
+
+    subgraph Scale["Phase 3: Scale<br/>Month 6-12"]
+        S1["Dedicated DB"]
+        S2["Microservices"]
+        S3["CI/CD & Monitoring"]
+    end
+
+    MVP -->|"1K users"| Growth -->|"10K users"| Scale
+
+    style MVP fill:#22c55e20,stroke:#22c55e
+    style Growth fill:#3b82f620,stroke:#3b82f6
+    style Scale fill:#a855f720,stroke:#a855f7
+`;
+
+/* ─── Score Bar ─── */
 
 function ScoreBar({ value, inverted }: { value: number; inverted?: boolean }) {
   const display = inverted ? 100 - value : value;
@@ -102,12 +225,34 @@ const scoreLabels: Record<string, { label: string; icon: React.ElementType }> = 
   lockIn: { label: "Lock-in Risk", icon: Lock },
 };
 
-export function StackComparison() {
+/* ─── Stack Comparison ─── */
+
+export function StackComparison({ sections }: ArchitectureWidgetsProps) {
+  const techStackSection = sections?.find(s =>
+    s.title.toLowerCase().includes("tech stack") || s.title.toLowerCase().includes("stack")
+  );
+
+  const stackOptions = useMemo(() => {
+    if (techStackSection) {
+      const parsed = parseStackFromContent(techStackSection.content);
+      if (parsed) return parsed;
+    }
+    return defaultStackOptions;
+  }, [techStackSection]);
+
+  const decisionTree = useMemo(() => {
+    if (techStackSection) {
+      const mermaid = extractMermaidFromContent(techStackSection.content);
+      if (mermaid) return mermaid;
+    }
+    return DEFAULT_DECISION_TREE;
+  }, [techStackSection]);
+
   return (
     <div className="space-y-6">
       <div>
         <h3 className="mb-3 font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider">Decision Tree</h3>
-        <MermaidDiagram chart={DECISION_TREE_CHART} />
+        <MermaidDiagram chart={decisionTree} />
       </div>
 
       <div>
@@ -197,68 +342,31 @@ export function StackComparison() {
 
 /* ─── Architecture Flow (Mermaid) ─── */
 
-const ARCHITECTURE_FLOW_CHART = `flowchart TB
-    subgraph Client["Client Layer"]
-        SPA["React SPA<br/>Vite + TypeScript + Tailwind"]
-        State["TanStack Query<br/>+ React Context"]
-        Router["React Router v6"]
-    end
-
-    subgraph API["API Gateway"]
-        SupaClient["Supabase Client<br/>Auth, DB, Storage, Realtime"]
-        Edge["Edge Functions<br/>Stripe, Email, AI"]
-        REST["REST / RPC<br/>Auto-generated"]
-    end
-
-    subgraph Data["Data Layer"]
-        PG["PostgreSQL<br/>Products, Orders, Users"]
-        RLS["Row-Level Security<br/>Per-user Isolation"]
-        Storage["Storage Buckets<br/>Images, Exports"]
-    end
-
-    subgraph External["External Services"]
-        Stripe["Stripe<br/>Payments & Subscriptions"]
-        Email["Resend / SendGrid<br/>Transactional Emails"]
-        AI["AI Gateway<br/>AI-powered Features"]
-    end
-
-    SPA --> SupaClient
-    SPA --> Edge
-    State --> SupaClient
-    SupaClient --> PG
-    SupaClient --> RLS
-    SupaClient --> Storage
-    Edge --> Stripe
-    Edge --> Email
-    Edge --> AI
-    REST --> PG
-
-    style Client fill:#3b82f620,stroke:#3b82f6
-    style API fill:#06b6d420,stroke:#06b6d4
-    style Data fill:#22c55e20,stroke:#22c55e
-    style External fill:#f59e0b20,stroke:#f59e0b
-`;
-
-const DATA_FLOW_CHART = `sequenceDiagram
-    participant U as User
-    participant R as React App
-    participant S as Supabase
-    participant E as Edge Function
-    participant St as Stripe
-    
-    U->>R: Interact with UI
-    R->>S: Query/Mutate Data
-    S-->>R: Realtime Updates
-    R->>E: Trigger Action
-    E->>St: Process Payment
-    St-->>E: Webhook Response
-    E->>S: Update Database
-    S-->>R: Push Change
-    R-->>U: Update UI
-`;
-
-export function ArchitectureFlow() {
+export function ArchitectureFlow({ sections }: ArchitectureWidgetsProps) {
   const [view, setView] = useState<"layers" | "dataflow">("layers");
+
+  const archSection = sections?.find(s =>
+    s.title.toLowerCase().includes("system architecture") || s.title.toLowerCase().includes("architecture")
+  );
+  const dataModelSection = sections?.find(s =>
+    s.title.toLowerCase().includes("data model") || s.title.toLowerCase().includes("api design")
+  );
+
+  const architectureChart = useMemo(() => {
+    if (archSection) {
+      const mermaid = extractMermaidFromContent(archSection.content);
+      if (mermaid) return mermaid;
+    }
+    return DEFAULT_ARCHITECTURE_FLOW;
+  }, [archSection]);
+
+  const dataFlowChart = useMemo(() => {
+    if (dataModelSection) {
+      const mermaid = extractMermaidFromContent(dataModelSection.content);
+      if (mermaid) return mermaid;
+    }
+    return DEFAULT_DATA_FLOW;
+  }, [dataModelSection]);
 
   return (
     <div className="space-y-4">
@@ -268,48 +376,36 @@ export function ArchitectureFlow() {
           <TabsTrigger value="dataflow" className="text-xs">Data Flow</TabsTrigger>
         </TabsList>
         <TabsContent value="layers" className="mt-4">
-          <MermaidDiagram chart={ARCHITECTURE_FLOW_CHART} />
+          <MermaidDiagram chart={architectureChart} />
         </TabsContent>
         <TabsContent value="dataflow" className="mt-4">
-          <MermaidDiagram chart={DATA_FLOW_CHART} />
+          <MermaidDiagram chart={dataFlowChart} />
         </TabsContent>
       </Tabs>
     </div>
   );
 }
 
-/* ─── Migration Path (Mermaid timeline) ─── */
+/* ─── Migration Path ─── */
 
-const MIGRATION_CHART = `flowchart LR
-    subgraph MVP["Phase 1: MVP<br/>Month 1-2"]
-        M1["Lovable + Supabase"]
-        M2["Stripe Checkout"]
-        M3["Ship & Validate PMF"]
-    end
+export function MigrationPath({ sections }: ArchitectureWidgetsProps) {
+  const planSection = sections?.find(s =>
+    s.title.toLowerCase().includes("scalability") ||
+    s.title.toLowerCase().includes("infrastructure") ||
+    s.title.toLowerCase().includes("deployment")
+  );
 
-    subgraph Growth["Phase 2: Growth<br/>Month 3-6"]
-        G1["Add CDN & Caching"]
-        G2["Background Jobs"]
-        G3["Analytics Pipeline"]
-    end
+  const migrationChart = useMemo(() => {
+    if (planSection) {
+      const mermaid = extractMermaidFromContent(planSection.content);
+      if (mermaid) return mermaid;
+    }
+    return DEFAULT_MIGRATION_CHART;
+  }, [planSection]);
 
-    subgraph Scale["Phase 3: Scale<br/>Month 6-12"]
-        S1["Dedicated DB"]
-        S2["Microservices"]
-        S3["CI/CD & Monitoring"]
-    end
-
-    MVP -->|"1K users"| Growth -->|"10K users"| Scale
-
-    style MVP fill:#22c55e20,stroke:#22c55e
-    style Growth fill:#3b82f620,stroke:#3b82f6
-    style Scale fill:#a855f720,stroke:#a855f7
-`;
-
-export function MigrationPath() {
   return (
     <div className="space-y-4">
-      <MermaidDiagram chart={MIGRATION_CHART} />
+      <MermaidDiagram chart={migrationChart} />
       <div className="grid gap-3 sm:grid-cols-3">
         {[
           { phase: "MVP", time: "Month 1-2", users: "0 - 1K", focus: "Ship fast, validate PMF", color: "border-success/40 bg-success/5" },

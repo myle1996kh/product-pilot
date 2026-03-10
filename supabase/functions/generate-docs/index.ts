@@ -74,7 +74,7 @@ serve(async (req) => {
       });
     }
 
-    const { project_id, artifact_types } = await req.json();
+    const { project_id, artifact_types, model_mappings } = await req.json();
     if (!project_id || !artifact_types || !Array.isArray(artifact_types)) {
       return new Response(JSON.stringify({ error: "project_id and artifact_types[] required" }), {
         status: 400,
@@ -186,11 +186,14 @@ ${conversationContext}
       if (!config) continue;
 
       try {
+        // Use per-artifact model if provided via model_mappings
+        const artifactModel = (model_mappings && model_mappings[artifactType]) || model;
+
         const response = await fetch(apiEndpoint, {
           method: "POST",
           headers,
           body: JSON.stringify({
-            model,
+            model: artifactModel,
             messages: [
               { role: "system", content: config.systemPrompt },
               { role: "user", content: `Generate the document based on this project info:\n${projectContext}` },

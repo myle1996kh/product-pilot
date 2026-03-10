@@ -28,6 +28,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import ModelMappingSettings from "@/components/ModelMappingSettings";
 
 type ConnectionStatus = "idle" | "testing" | "success" | "error";
 
@@ -541,6 +542,11 @@ export default function SettingsPage() {
               <Check className="h-4 w-4" />
               {saving ? "Saving..." : "Save Settings"}
             </Button>
+          </div>
+
+          {/* Model Mapping per Document Type */}
+          <div className="mt-8 border-t pt-8">
+            <ModelMappingSettings />
           </div>
         </div>
       </motion.div>
