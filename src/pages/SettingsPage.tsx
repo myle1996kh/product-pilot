@@ -28,6 +28,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import ModelMappingSettings from "@/components/ModelMappingSettings";
 
 type ConnectionStatus = "idle" | "testing" | "success" | "error";
 
