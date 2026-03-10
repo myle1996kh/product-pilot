@@ -13,7 +13,27 @@ const ARTIFACT_PROMPTS: Record<string, { systemPrompt: string; sections: string[
     sections: ["Problem Statement", "Goals & Non-Goals", "Target Users", "Functional Requirements", "Non-Functional Requirements", "Acceptance Criteria", "Success Metrics"],
   },
   architecture: {
-    systemPrompt: `You are a senior software architect. Generate a technical architecture document based on the project information. Output valid JSON with the structure: { "sections": [{ "title": string, "content": string, "order": number }] }. Include sections for: Tech Stack Recommendation, System Architecture, Data Model, API Design, Infrastructure & Deployment, Security Considerations, and Scalability Plan.`,
+    systemPrompt: `You are a senior software architect. Generate a technical architecture document based on the project information. Output valid JSON with the structure: { "sections": [{ "title": string, "content": string, "order": number }] }.
+
+Include these sections with SPECIFIC formatting requirements:
+
+1. "Tech Stack Recommendation" - MUST include a JSON code block with stack options array AND a Mermaid decision tree. Format:
+   - First include a \`\`\`json code block with an array of stack options, each having: name (string), key (string), recommended (boolean, only one true), layers (object with keys: frontend, backend, database, payments, deploy, auth), scores (object with keys: speed, cost, ease, scale, lockIn - each 0-100), pros (string[]), cons (string[])
+   - Then include a \`\`\`mermaid code block with a flowchart TD decision tree helping choose between the stacks. Use fill colors for nodes.
+
+2. "System Architecture" - MUST include a \`\`\`mermaid code block with a flowchart TB showing system layers (Client, API, Data, External) as subgraphs with connections between components. Use descriptive labels and style subgraphs with fill colors.
+
+3. "Data Model" - MUST include a \`\`\`mermaid code block with either an erDiagram or sequenceDiagram showing data flow between User, App, Backend, and External services.
+
+4. "API Design" - Describe API endpoints, methods, and data contracts in Markdown.
+
+5. "Infrastructure & Deployment" - Describe deployment strategy, CI/CD, environments.
+
+6. "Security Considerations" - Describe auth, data protection, compliance.
+
+7. "Scalability Plan" - MUST include a \`\`\`mermaid code block with a flowchart LR showing phased migration from MVP to Growth to Scale, with subgraphs for each phase and timeline/user milestones. Use style with fill colors.
+
+IMPORTANT: All Mermaid diagrams must be valid Mermaid syntax. Do NOT use emojis in Mermaid. Use proper quoting for node labels with special characters. Make all content specific to the actual project, not generic.`,
     sections: ["Tech Stack Recommendation", "System Architecture", "Data Model", "API Design", "Infrastructure & Deployment", "Security Considerations", "Scalability Plan"],
   },
   business_model: {
