@@ -74,7 +74,7 @@ serve(async (req) => {
       });
     }
 
-    const { project_id, artifact_types } = await req.json();
+    const { project_id, artifact_types, model_mappings } = await req.json();
     if (!project_id || !artifact_types || !Array.isArray(artifact_types)) {
       return new Response(JSON.stringify({ error: "project_id and artifact_types[] required" }), {
         status: 400,
