@@ -542,6 +542,11 @@ export default function SettingsPage() {
               {saving ? "Saving..." : "Save Settings"}
             </Button>
           </div>
+
+          {/* Model Mapping per Document Type */}
+          <div className="mt-8 border-t pt-8">
+            <ModelMappingSettings />
+          </div>
         </div>
       </motion.div>
     </div>
