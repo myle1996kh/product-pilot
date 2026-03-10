@@ -26,6 +26,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
 type ArtifactModelMap = Record<string, string>;
+type ModelOption = { value: string; label: string; tier: string; description: string };
 
 const ARTIFACT_TYPES = [
   { key: "idea_brief", label: "Idea Brief", icon: Lightbulb, description: "Concise project summary & elevator pitch" },
@@ -36,7 +37,7 @@ const ARTIFACT_TYPES = [
   { key: "intro_deck", label: "Intro Deck", icon: Presentation, description: "Pitch deck slides (Elon Musk style)" },
 ];
 
-const AVAILABLE_MODELS = [
+const LOVABLE_MODELS: ModelOption[] = [
   { value: "google/gemini-3-flash-preview", label: "Gemini 3 Flash Preview", tier: "fast", description: "Fast, balanced speed & quality" },
   { value: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro", tier: "premium", description: "Best for complex reasoning" },
   { value: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash", tier: "balanced", description: "Good balance of cost & quality" },
@@ -62,21 +63,32 @@ const tierColors: Record<string, string> = {
   balanced: "bg-primary/15 text-primary border-primary/30",
   fast: "bg-success/15 text-success border-success/30",
   economy: "bg-muted text-muted-foreground border-muted-foreground/30",
+  custom: "bg-violet-500/15 text-violet-600 border-violet-500/30",
 };
+
+function inferTier(modelId: string): string {
+  const lower = modelId.toLowerCase();
+  if (lower.includes("opus") || lower.includes("pro") || lower.includes("gpt-5.")) return "premium";
+  if (lower.includes("sonnet") || lower.includes("mini") || lower.includes("flash")) return "balanced";
+  if (lower.includes("haiku") || lower.includes("nano") || lower.includes("lite") || lower.includes("fast")) return "economy";
+  return "custom";
+}
 
 export default function ModelMappingSettings() {
   const { user } = useAuth();
   const [mappings, setMappings] = useState<ArtifactModelMap>({ ...RECOMMENDED_MAPPINGS });
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [availableModels, setAvailableModels] = useState<ModelOption[]>(LOVABLE_MODELS);
+  const [providerName, setProviderName] = useState<string>("lovable");
 
   useEffect(() => {
-    if (user) loadMappings();
+    if (user) loadSettingsAndModels();
   }, [user]);
 
-  const loadMappings = async () => {
+  const loadSettingsAndModels = async () => {
     try {
-      const { data } = await supabase
+      const { data: providerData } = await supabase
         .from("ai_provider_settings")
         .select("*")
         .eq("user_id", user!.id)
@@ -84,14 +96,62 @@ export default function ModelMappingSettings() {
         .limit(1)
         .single();
 
-      if (data?.default_model) {
-        // Check if there's a stored model_mappings in the provider's api_endpoint field as JSON
-        // For now, use the default_model as the base for all types
-        const storedMappings: ArtifactModelMap = {};
+      if (providerData) {
+        setProviderName(providerData.provider_name);
+
+        // If custom provider, fetch its models
+        if (providerData.provider_name !== "lovable" && providerData.api_endpoint && providerData.api_key_encrypted) {
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const resp = await fetch(
+              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/test-provider`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${session?.access_token}`,
+                },
+                body: JSON.stringify({
+                  action: "fetch_models",
+                  provider_name: providerData.provider_name,
+                  api_endpoint: providerData.api_endpoint,
+                  api_key: providerData.api_key_encrypted,
+                }),
+              }
+            );
+            if (resp.ok) {
+              const result = await resp.json();
+              if (result.models && Array.isArray(result.models)) {
+                const customModels: ModelOption[] = result.models.map((m: string) => ({
+                  value: m,
+                  label: m,
+                  tier: inferTier(m),
+                  description: `Custom provider model`,
+                }));
+                // Merge: custom models first, then Lovable models
+                setAvailableModels([...customModels, ...LOVABLE_MODELS]);
+              }
+            }
+          } catch {
+            // Fall back to Lovable models only
+          }
+        }
+      }
+
+      // Load saved mappings from localStorage
+      const saved = localStorage.getItem(`model_mappings_${user!.id}`);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          setMappings(prev => ({ ...prev, ...parsed }));
+        } catch { /* ignore */ }
+      } else if (providerData?.default_model) {
+        // If no saved mappings, use default_model for all
+        const defaultMappings: ArtifactModelMap = {};
         ARTIFACT_TYPES.forEach(t => {
-          storedMappings[t.key] = RECOMMENDED_MAPPINGS[t.key] || data.default_model || "google/gemini-3-flash-preview";
+          defaultMappings[t.key] = RECOMMENDED_MAPPINGS[t.key] || providerData.default_model || "google/gemini-3-flash-preview";
         });
-        setMappings(storedMappings);
+        setMappings(defaultMappings);
       }
     } catch {
       // Use defaults
@@ -112,12 +172,10 @@ export default function ModelMappingSettings() {
   const saveMappings = async () => {
     if (!user) return;
     setSaving(true);
-
     try {
-      // Store mappings as JSON in localStorage for now (will be used by generate-docs)
       localStorage.setItem(`model_mappings_${user.id}`, JSON.stringify(mappings));
       toast.success("Model mappings saved!");
-    } catch (err: any) {
+    } catch {
       toast.error("Failed to save model mappings");
     } finally {
       setSaving(false);
@@ -138,6 +196,11 @@ export default function ModelMappingSettings() {
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-primary" />
           <h2 className="font-display text-lg font-semibold">Model Mapping</h2>
+          {providerName !== "lovable" && (
+            <Badge variant="outline" className={tierColors.custom}>
+              {providerName} connected
+            </Badge>
+          )}
         </div>
         <div className="flex gap-2">
           <Button variant="ghost" size="sm" onClick={resetToRecommended} className="gap-1.5 text-xs">
@@ -151,14 +214,15 @@ export default function ModelMappingSettings() {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Assign specific AI models to each document type. Premium models produce better results for complex docs like Architecture & PRD.
+        Assign specific AI models to each document type.
+        {providerName !== "lovable" && ` Showing models from your ${providerName} provider + Lovable AI models.`}
       </p>
 
       <div className="space-y-2">
         {ARTIFACT_TYPES.map((artifact) => {
           const Icon = artifact.icon;
           const currentModel = mappings[artifact.key] || RECOMMENDED_MAPPINGS[artifact.key];
-          const modelInfo = AVAILABLE_MODELS.find(m => m.value === currentModel);
+          const modelInfo = availableModels.find(m => m.value === currentModel);
 
           return (
             <motion.div
@@ -167,7 +231,6 @@ export default function ModelMappingSettings() {
               animate={{ opacity: 1, y: 0 }}
               className="flex items-center gap-4 rounded-xl border bg-card p-4 shadow-soft"
             >
-              {/* Artifact info */}
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary">
                 <Icon className="h-4 w-4 text-secondary-foreground" />
               </div>
@@ -176,10 +239,9 @@ export default function ModelMappingSettings() {
                 <p className="truncate text-[11px] text-muted-foreground">{artifact.description}</p>
               </div>
 
-              {/* Model selector */}
               <div className="flex items-center gap-2">
                 {modelInfo && (
-                  <Badge variant="outline" className={`hidden text-[10px] sm:inline-flex ${tierColors[modelInfo.tier]}`}>
+                  <Badge variant="outline" className={`hidden text-[10px] sm:inline-flex ${tierColors[modelInfo.tier] || tierColors.custom}`}>
                     {modelInfo.tier}
                   </Badge>
                 )}
@@ -187,11 +249,33 @@ export default function ModelMappingSettings() {
                   value={currentModel}
                   onValueChange={(val) => updateMapping(artifact.key, val)}
                 >
-                  <SelectTrigger className="w-[220px]">
+                  <SelectTrigger className="w-[260px]">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    {AVAILABLE_MODELS.map((model) => (
+                  <SelectContent className="max-h-[300px]">
+                    {providerName !== "lovable" && (
+                      <div className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        {providerName} Models
+                      </div>
+                    )}
+                    {availableModels
+                      .filter(m => !LOVABLE_MODELS.some(lm => lm.value === m.value))
+                      .map((model) => (
+                        <SelectItem key={model.value} value={model.value}>
+                          <div className="flex items-center gap-2">
+                            <span className="truncate">{model.label}</span>
+                            <span className="shrink-0 text-[10px] text-muted-foreground">
+                              ({model.tier})
+                            </span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    {providerName !== "lovable" && (
+                      <div className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Lovable AI Models
+                      </div>
+                    )}
+                    {LOVABLE_MODELS.map((model) => (
                       <SelectItem key={model.value} value={model.value}>
                         <div className="flex items-center gap-2">
                           <span>{model.label}</span>
@@ -209,7 +293,6 @@ export default function ModelMappingSettings() {
         })}
       </div>
 
-      {/* Cost hint */}
       <div className="rounded-lg border border-dashed bg-muted/30 p-3">
         <p className="text-[11px] text-muted-foreground">
           <strong className="text-foreground">💡 Tip:</strong> Use{" "}
